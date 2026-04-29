@@ -6,7 +6,7 @@ All nodes read from and write to this shared state.
 """
 
 from typing import TypedDict, Literal
-from utilities.plan_options import PlanStep
+from plan_options import PlanStep
 
 
 class ResearchState(TypedDict):
@@ -37,7 +37,7 @@ class ResearchState(TypedDict):
     fact_check_report: dict
     confidence_score: float
     iteration_count: int
-    HITL_threshold: int
+    HITL_threshold: float
     max_refinement: int
     scratchpad: list[str]
     user_id: str

@@ -34,4 +34,7 @@ def fact_checker_node(state: ResearchState) -> dict:
     - If confidence < threshold, trigger HITL interrupt.
     - Support Time Travel via state checkpointing.
     """
-    raise NotImplementedError
+    # this is for testing purposes. Comment out for actual implementation:
+    print("fact_checker called")
+    return {'plan_step': state['plan_step'] + 1}
+    # raise NotImplementedError

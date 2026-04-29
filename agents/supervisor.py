@@ -13,7 +13,7 @@ from langgraph.graph import StateGraph, START, END
 
 from langchain_aws import ChatBedrock
 
-from utilities.plan_options import Plan
+from plan_options import Plan, PlanStep
 
 def planner_node(state: ResearchState) -> dict:
     """
@@ -25,12 +25,12 @@ def planner_node(state: ResearchState) -> dict:
     - Write to the scratchpad for observability.
     """
     # llm initialization and setup
-    planning_llm = ChatBedrock(model="mistral.mistral-7b-instruct-v0:2",
+    planning_llm = ChatBedrock(model="mistral.mistral-7b-instruct-v0:2", # will need to find a different model for structured output
         region = "us-east-1", 
         model_kwargs={
             "temperature": 0.05
     }) 
-    planning_llm = planning_llm.with_structured_output(Plan)
+    #planning_llm = planning_llm.with_structured_output(Plan)
 
     query = f"""
 You are a planner, use the plan-and-execute pattern to create a list of subtasks to achieve the user query.
@@ -48,11 +48,12 @@ this is the user query you are trying to achieve:
 {state['question']}
 """
 
-    result: Plan = planning_llm.invoke(query) # type: ignore
+    # result: Plan = planning_llm.invoke(query) # type: ignore
+    result = Plan(steps=[PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='fact_checker_node'), PlanStep(step='critique_node')], reasoning=[''])
 
     print(result.steps)
     print(result.reasoning)
-    
+
     return {
         'plan': result.steps,
         'scratchpad': state['scratchpad'] + result.reasoning
@@ -67,9 +68,9 @@ def router(state: ResearchState) -> str:
     - Inspect the current plan and state to choose the next node.
     - Return the node name as a string (used by add_conditional_edges).
     """
-    if(state['plan_step'] >= len(state['plan'])):
+    if(state['plan_step'] >= len(state['plan'])): # check END condition and route to END if satisfied
         return END
-    return str(state['plan'][state['plan_step']])
+    return state['plan'][state['plan_step']].step # return the next step in the plan
 
 
 def critique_node(state: ResearchState) -> dict:
@@ -83,6 +84,7 @@ def critique_node(state: ResearchState) -> dict:
     - If above threshold, accept and route to END.
     - Increment iteration_count.
     """
+    print('Critique node called') # for testing and debugging purposes only
     if(state['confidence_score'] < state['HITL_threshold']):
         # Retry condition and action
         if(state['iteration_count'] < state['max_refinement']):
@@ -121,6 +123,7 @@ def build_supervisor_graph():
     Returns:
         A compiled LangGraph that can be invoked with an initial state.
     """
+    # Initialize a StateGraph on ResearchState
     supervisor = StateGraph(ResearchState)
 
     # Adding nodes in the order they would probably get called
@@ -130,7 +133,10 @@ def build_supervisor_graph():
     supervisor.add_node(fact_checker_node)
     supervisor.add_node(critique_node)
     
+    # Initial edge
     supervisor.add_edge(START, 'planner_node')
+
+    # Conditional edges mapping all nodes to all non-planner nodes
     supervisor.add_conditional_edges('planner_node', router, 
         ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
     supervisor.add_conditional_edges('retriever_node', router, 
@@ -142,4 +148,42 @@ def build_supervisor_graph():
     supervisor.add_conditional_edges('critique_node', router, 
         ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
     
+    # Compile and return supervisor/orchestraion layer graph
     return supervisor.compile()
+
+if __name__ == '__main__':
+    graph = build_supervisor_graph()
+
+    initial_state: ResearchState = {
+        'question': 'What are the effects of climate change on coral reefs?',
+        'plan': [PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='fact_checker_node'), PlanStep(step='critique_node')],
+        'plan_step': 0,
+        'retrieved_chunks': [],
+        'analysis': {},
+        'fact_check_report': {},
+        'confidence_score': 0.9,
+        'iteration_count': 0,
+        'HITL_threshold': 0.7,
+        'max_refinement': 3,
+        'scratchpad': [],
+        'user_id': 'test_user'
+    }
+    result = graph.invoke(initial_state)
+    print(result)
+
+    initial_state: ResearchState = {
+        'question': 'What are the effects of climate change on coral reefs?',
+        'plan': [PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='critique_node')],
+        'plan_step': 0,
+        'retrieved_chunks': [],
+        'analysis': {},
+        'fact_check_report': {},
+        'confidence_score': 0.3,   # below threshold → retry
+        'HITL_threshold': 0.7,
+        'iteration_count': 0,
+        'max_refinement': 1,       # only 1 retry allowed → will hit NotImplementedError
+        'scratchpad': [],
+        'user_id': 'test_user'
+    }
+
+    result = graph.invoke(initial_state)
