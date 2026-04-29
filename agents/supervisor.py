@@ -48,14 +48,14 @@ this is the user query you are trying to achieve:
 {state['question']}
 """
 
-    result = planning_llm.invoke(query)
+    result: Plan = planning_llm.invoke(query) # type: ignore
 
-    print(result.steps) # type: ignore
-    print(result.reasoning) # type: ignore
+    print(result.steps)
+    print(result.reasoning)
     
-    state['plan'] = result.steps # type: ignore
-    for i in range(len(result.reasoning)): # type: ignore
-        state['scratchpad'].append(result.reasoning[i]) # type: ignore
+    state['plan'] = result.steps
+    for i in range(len(result.reasoning)):
+        state['scratchpad'].append(result.reasoning[i])
 
     return dict(state)
 
@@ -68,8 +68,9 @@ def router(state: ResearchState) -> str:
     - Inspect the current plan and state to choose the next node.
     - Return the node name as a string (used by add_conditional_edges).
     """
-    step = state['plan'][state['plan_step']]
-    raise NotImplementedError
+    if(state['plan_step'] >= len(state['plan'])):
+        return END
+    return str(state['plan'][state['plan_step']])
 
 
 def critique_node(state: ResearchState) -> dict:
@@ -86,15 +87,19 @@ def critique_node(state: ResearchState) -> dict:
     if(state['confidence_score'] < state['HITL_threshold']):
         if(state['iteration_count'] < state['max_refinement']):
             # TODO: loop back for refinement
-            pass
+            # increment the value of the plan step
+            return {
+                'iteration_count': state['iteration_count'] + 1
+            }
         else:
-            # TODO: trigger HITL interruption
+            # TODO: trigger HITL interruption. Write middleware later
             pass 
     else:
-        # TODO: route to END
-        pass
+        # Increment step count to trigger route to END
+        return {
+            'plan_step': state['plan_step'] + 1
+        }
 
-    # increment the value of the plan step
     state['iteration_count'] += 1
     raise NotImplementedError
 
@@ -124,9 +129,9 @@ def build_supervisor_graph():
     
     supervisor.add_edge(START, 'planner_node')
     supervisor.add_conditional_edges('planner_node', router, 
-        ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node'])
-    supervisor.add_edge('critique_node', 'critique_node')
-    supervisor.add_edge('critique_node', END)
+        ['retriever_node', 'analyst_node'])
+    supervisor.add_edge('retriever_node', 'critique_node')
+    supervisor.add_edge('analyst_node', 'critique_node')
+    supervisor.add_edge('fact_checker_node', 'fact_checker_node')
     
-
     return supervisor.compile()
