@@ -7,7 +7,6 @@ information and redacts it before processing or returning.
 
 import re
 
-
 # Patterns to detect — extend as needed
 PII_PATTERNS: dict[str, str] = {
     "email": r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",
@@ -25,4 +24,6 @@ def mask_pii(text: str) -> str:
     - Return the sanitized text.
     - Consider logging redaction counts to the scratchpad.
     """
-    raise NotImplementedError
+    for pii_type, pattern in PII_PATTERNS.items():
+        text = re.sub(pattern, f"[{pii_type.upper()}_REDACTED]", text)
+    return text
