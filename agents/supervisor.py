@@ -28,8 +28,8 @@ def planner_node(state: ResearchState) -> dict:
     planning_llm = ChatBedrock(model="mistral.mistral-7b-instruct-v0:2",
         region = "us-east-1", 
         model_kwargs={
-            "temperature": 0.1
-    }) # type: ignore[call-arg]
+            "temperature": 0.05
+    }) 
     planning_llm = planning_llm.with_structured_output(Plan)
 
     query = f"""
@@ -53,11 +53,10 @@ this is the user query you are trying to achieve:
     print(result.steps)
     print(result.reasoning)
     
-    state['plan'] = result.steps
-    for i in range(len(result.reasoning)):
-        state['scratchpad'].append(result.reasoning[i])
-
-    return dict(state)
+    return {
+        'plan': result.steps,
+        'scratchpad': state['scratchpad'] + result.reasoning
+    }
 
 
 def router(state: ResearchState) -> str:
@@ -85,22 +84,26 @@ def critique_node(state: ResearchState) -> dict:
     - Increment iteration_count.
     """
     if(state['confidence_score'] < state['HITL_threshold']):
+        # Retry condition and action
         if(state['iteration_count'] < state['max_refinement']):
             # TODO: loop back for refinement
             # increment the value of the plan step
             return {
+                'plan_step': 0,
                 'iteration_count': state['iteration_count'] + 1
             }
+        
+        # Escelate condition and action
         else:
             # TODO: trigger HITL interruption. Write middleware later
             pass 
+
+    # Accept condition and action
     else:
         # Increment step count to trigger route to END
-        return {
-            'plan_step': state['plan_step'] + 1
-        }
+        # Need to route to end?
+        return {'plan_step': state['plan_step'] + 1}
 
-    state['iteration_count'] += 1
     raise NotImplementedError
 
 
@@ -129,9 +132,14 @@ def build_supervisor_graph():
     
     supervisor.add_edge(START, 'planner_node')
     supervisor.add_conditional_edges('planner_node', router, 
-        ['retriever_node', 'analyst_node'])
-    supervisor.add_edge('retriever_node', 'critique_node')
-    supervisor.add_edge('analyst_node', 'critique_node')
-    supervisor.add_edge('fact_checker_node', 'fact_checker_node')
+        ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
+    supervisor.add_conditional_edges('retriever_node', router, 
+        ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
+    supervisor.add_conditional_edges('analyst_node', router, 
+        ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
+    supervisor.add_conditional_edges('fact_checker_node', router, 
+        ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
+    supervisor.add_conditional_edges('critique_node', router, 
+        ['retriever_node', 'analyst_node', 'fact_checker_node', 'critique_node', END])
     
     return supervisor.compile()
