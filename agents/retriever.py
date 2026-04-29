@@ -25,4 +25,7 @@ def retriever_node(state: ResearchState) -> dict:
         Dict with "retrieved_chunks" key containing a list of dicts,
         each with: content, relevance_score, source, page_number.
     """
-    raise NotImplementedError
+    # this is for testing purposes. Comment out for actual implementation:
+    print("retriever called")
+    return {'plan_step': state['plan_step'] + 1}
+    # raise NotImplementedError
