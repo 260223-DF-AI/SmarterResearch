@@ -31,8 +31,8 @@ def _get_downloaded_papers(dir: str):
     """
 
     for file in os.listdir(dir):
-        *file, _ = file.split(".")  # _ discards file extension
-        yield ".".join(file)
+        *file, ext = file.split(".")
+        yield (".".join(file), ext)
 
 
 def download_category_papers(cat_code: str, num_results=5) -> tuple[int, int]:
@@ -52,7 +52,7 @@ def download_category_papers(cat_code: str, num_results=5) -> tuple[int, int]:
 
     # set holds downloaded papers
     local_files: set[int] = set()
-    for file_name in _get_downloaded_papers(CORPUS_DIR):
+    for file_name, _ in _get_downloaded_papers(CORPUS_DIR):
         local_files.add(file_name)
 
     # download the papers found from search if not already stored
