@@ -51,10 +51,6 @@ this is the user query you are trying to achieve:
     
     ollama_planning_llm = ChatOllama(model='llama3.2', temperature=0.05, format=Plan.model_json_schema())
     result = Plan.model_validate_json(ollama_planning_llm.invoke(query).content) # type: ignore
-    print(result)
-
-    print(result.steps)
-    print(result.reasoning)
 
     return {
         'plan': result.steps,
