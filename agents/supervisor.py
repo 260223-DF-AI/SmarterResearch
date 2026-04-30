@@ -28,6 +28,9 @@ def planner_node(state: ResearchState) -> dict:
     query = f"""
 You are a planner, use the plan-and-execute pattern to create a list of subtasks to achieve the user query.
 
+record the steps in the plan in 'steps' 
+record the reasoning for taking those steps in 'reasoning'
+
 these are the actions that can be taken in the plan:
 - 'retriever_node': Retrieve relevant document chunks for the current sub-task, 
 - 'analyst_node': Synthesize retrieved chunks into a structured research response,
