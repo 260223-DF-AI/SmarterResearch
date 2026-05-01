@@ -55,31 +55,22 @@ def analyst_node(state: ResearchState) -> dict:
     """
     print("analyst called")
 
+    # unsure how to implement "build a prompt from the... sub-task" yet
     prompt: str = f"""User question: {state["question"]}
-
-Planner sub-tasks: {"\n".join(state["plan"])}
 
 Retrieved chunks: {state["retrieved_chunks"]}
 """
 
-    model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+    model_id = "amazon.nova-pro-v1:0"
     llm = ChatBedrock(
         model_id=model_id,
         region_name="us-east-1",
-        streaming=True,
     )
 
     llm = llm.with_structured_output(AnalysisResult)
 
-    response: str = ""
-    for chunk in llm.stream(prompt):
-        print(chunk.content, end="", flush=True)
-        response += chunk
-
-    print(f"{response=}, {type(response)=}")
-
-    # return {"analysis": response, "confidence_score": "NYI"}
-    return {"plan_step": state["plan_step"] + 1}
+    response = llm.invoke(prompt)
+    return {"analysis": response, "confidence_score": response.confidence}
 
 
 if __name__ == "__main__":
