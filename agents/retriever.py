@@ -7,7 +7,7 @@ structured retrieval results to the Supervisor.
 """
 
 from agents.state import ResearchState
-from plan_options import PlanStep
+from utilities.plan_options import PlanStep
 from pinecone import Pinecone, SearchQuery
 from langchain_ollama import ChatOllama
 from langchain_aws import ChatBedrock

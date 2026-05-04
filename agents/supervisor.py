@@ -14,7 +14,7 @@ from langgraph.graph import StateGraph, START, END
 from langchain_aws import ChatBedrock
 from langchain_ollama import ChatOllama
 
-from plan_options import Plan, PlanStep
+from utilities.plan_options import Plan, PlanStep
 
 EXAMPLES = """[Put an example]"""
 
