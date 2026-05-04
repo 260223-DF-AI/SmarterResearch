@@ -5,17 +5,21 @@ Synthesizes retrieved context into a structured, cited research
 response using AWS Bedrock, with Pydantic-validated output.
 """
 
+from langchain_aws import ChatBedrock
 from pydantic import BaseModel
 
+# from agents.state import ResearchState
 from agents.state import ResearchState
-
+from utilities.plan_options import PlanStep
 
 # ---------------------------------------------------------------------------
 # Structured Output Schema
 # ---------------------------------------------------------------------------
 
+
 class Citation(BaseModel):
     """A single supporting citation."""
+
     source: str
     page_number: int | None = None
     excerpt: str
@@ -23,6 +27,7 @@ class Citation(BaseModel):
 
 class AnalysisResult(BaseModel):
     """Pydantic model enforcing structured analyst output."""
+
     answer: str
     citations: list[Citation]
     confidence: float  # 0.0 – 1.0
@@ -31,6 +36,7 @@ class AnalysisResult(BaseModel):
 # ---------------------------------------------------------------------------
 # Agent Node
 # ---------------------------------------------------------------------------
+
 
 def analyst_node(state: ResearchState) -> dict:
     """
@@ -47,7 +53,44 @@ def analyst_node(state: ResearchState) -> dict:
         Dict with "analysis" key containing the AnalysisResult as a dict,
         and "confidence_score" updated from the model's self-assessment.
     """
-    # this is for testing purposes. Comment out for actual implementation:
     print("analyst called")
-    return {'plan_step': state['plan_step'] + 1}
-    # raise NotImplementedError
+
+    # unsure how to implement "build a prompt from the... sub-task" yet
+    prompt: str = f"""User question: {state["question"]}
+
+Retrieved chunks: {state["retrieved_chunks"]}
+"""
+
+    model_id = "amazon.nova-pro-v1:0"
+    llm = ChatBedrock(
+        model_id=model_id,
+        region_name="us-east-1",
+    )
+
+    llm = llm.with_structured_output(AnalysisResult)
+
+    response = llm.invoke(prompt)
+    return {"analysis": response, "confidence_score": response.confidence}
+
+
+if __name__ == "__main__":
+    initial_state: ResearchState = {
+        "question": "What are the effects of climate change on coral reefs?",
+        "plan": [
+            PlanStep(step="retriever_node"),
+            PlanStep(step="analyst_node"),
+            PlanStep(step="critique_node"),
+        ],
+        "plan_step": 0,
+        "retrieved_chunks": [],
+        "analysis": {},
+        "fact_check_report": {},
+        "confidence_score": 0.3,  # below threshold → retry
+        "HITL_threshold": 0.7,
+        "iteration_count": 0,
+        "max_refinement": 1,  # only 1 retry allowed → will hit NotImplementedError
+        "scratchpad": [],
+        "user_id": "test_user",
+    }
+
+    analyst_node(initial_state)

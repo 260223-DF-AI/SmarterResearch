@@ -6,7 +6,7 @@ All nodes read from and write to this shared state.
 """
 
 from typing import TypedDict, Literal
-from plan_options import PlanStep
+from utilities.plan_options import PlanStep
 
 
 class ResearchState(TypedDict):
