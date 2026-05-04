@@ -6,6 +6,7 @@ response using AWS Bedrock, with Pydantic-validated output.
 """
 
 from langchain_aws import ChatBedrock
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
 # from agents.state import ResearchState
@@ -33,6 +34,15 @@ class AnalysisResult(BaseModel):
     confidence: float  # 0.0 – 1.0
 
 
+def _format_chunks(chunks: list[dict]) -> str:
+    """Render retrieved chunks into a numbered, citeable block."""
+    lines = []
+    for i, c in enumerate(chunks, start=1):
+        page = f", p.{c['page_number']}" if c.get("page_number") else ""
+        lines.append(f"[{i}] (source: {c['source']}{page})\n{c['chunk_text']}")
+    return "\n\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Agent Node
 # ---------------------------------------------------------------------------
@@ -55,22 +65,66 @@ def analyst_node(state: ResearchState) -> dict:
     """
     print("analyst called")
 
-    # unsure how to implement "build a prompt from the... sub-task" yet
-    prompt: str = f"""User question: {state["question"]}
+    chunks = state.get("retrieved_chunks", [])
+    log = [f"[analyst] synthesizing from {len(chunks)} chunks"]
 
-Retrieved chunks: {state["retrieved_chunks"]}
-"""
+    plan = state.get("plan", [])
+    idx = state.get("current_subtask_index", 0)
+    sub_task = plan[idx] if plan else state["question"]
+
+    PROMPT = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a research analyst. Synthesize a precise answer to the user's "
+                "question using ONLY the numbered context chunks below. Every factual "
+                "claim must cite at least one chunk by its source filename and page. "
+                "If the context does not support an answer, say so explicitly and set "
+                "confidence below 0.4.\n\n"
+                "Self-assess your confidence on a 0.0–1.0 scale where:\n"
+                "  • 0.9+ = direct quote answers the question\n"
+                "  • 0.6–0.9 = answer is supported by the context but requires inference\n"
+                "  • <0.6 = context is partial, conflicting, or off-topic\n\n"
+                "Output schema: return JSON with 'answer' (string), 'citations' "
+                "(a JSON array of objects, each with 'source' and 'page_number'), "
+                "and 'confidence' (number 0.0–1.0). Never return citations as a single string.",
+            ),
+            (
+                "human",
+                "Question: {question}\n\n"
+                "Sub-task: {sub_task}\n\n"
+                "Context chunks:\n{context_block}",
+            ),
+        ]
+    )
 
     model_id = "amazon.nova-pro-v1:0"
     llm = ChatBedrock(
         model_id=model_id,
         region_name="us-east-1",
+        model_kwargs={"max_tokens": 1024, "temperature": 0.2},
     )
 
-    llm = llm.with_structured_output(AnalysisResult)
+    chain = PROMPT | llm.with_structured_output(AnalysisResult)
 
-    response = llm.invoke(prompt)
-    return {"analysis": response, "confidence_score": response.confidence}
+    response = chain.invoke(
+        {
+            "question": state["question"],
+            "sub_task": sub_task,
+            "context_block": _format_chunks(chunks),
+        }
+    )
+
+    log.append(
+        f"[analyst] confidence={response.confidence:.2f}, "
+        f"citations={len(response.citations)}"
+    )
+
+    return {
+        "analysis": response,
+        "confidence_score": response.confidence,
+        "scratchpad": log,
+    }
 
 
 if __name__ == "__main__":
