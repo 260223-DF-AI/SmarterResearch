@@ -6,17 +6,30 @@ applies context compression and re-ranking, and returns
 structured retrieval results to the Supervisor.
 """
 
-from state import ResearchState
+from agents.state import ResearchState
 from plan_options import PlanStep
-from pinecone import Pinecone, SearchQuery, SearchRerank
+from pinecone import Pinecone, SearchQuery
+# from langchain_pinecone import PineconeVectorStore
+from langchain_ollama import ChatOllama
+from langchain_aws import ChatBedrock
+import cohere
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
 pc = Pinecone(api_key=PINECONE_API_KEY)
+
+# llm initialization and setup
+# bedrock_llm = ChatBedrock(model="amazon.nova-pro-v1:0",
+#     region = "us-east-1", 
+#     model_kwargs={
+#         "temperature": 0.05
+# }) 
+ollama_llm = ChatOllama(model='llama3.2', temperature=0.05)
 
 if not pc.has_index(PINECONE_INDEX_NAME):
     pc.create_index_for_model(
@@ -44,27 +57,67 @@ def retriever_node(state: ResearchState) -> dict:
         Dict with "retrieved_chunks" key containing a list of dicts,
         each with: content, relevance_score, source, page_number.
     """
+    context = []
+    docs = []
     query = state["question"]
 
     results = index.search(namespace="research",
-        query=SearchQuery(top_k=10, inputs={'text': query}),
-        rerank={
-            "model": "pinecone-rerank-v0",
-            "top_n": 10,
-            "rank_fields": ["chunk_text"]
-        }
+        query=SearchQuery(top_k=10, inputs={'text': query}, ),
+        # rerank={
+        #     # "model": "pinecone-rerank-v0",
+        #     "model": "bge-reranker-v2-m3",
+        #     "top_n": 10,
+        #     "rank_fields": ["chunk_text"]
+        # }
     )
+
+    # formats each result as a dictionary and adds it to the list of context
     for hit in results['result']['hits']:
-        # print(f"id: {hit['_id']}, score: {round(hit['_score'], 2)}, text: {hit['fields']['chunk_text']}, category: {hit['fields']['category']}")
-        print(f"{hit}")
+        print(hit)
+        # compression query
+        compression_query = f"""Clean the following string up to make it understandable.
+        Extract and keep only the most relevant pieces to the user query.
+        Have each sentence on its own line.
+        ONLY include the cleaned string and use as few output tokens as possible in your response, no intro or outro.
+        String to be cleaned: {hit['fields']['chunk_text']}
+        User query: {query}"""
+        compressed = ollama_llm.invoke(compression_query).content
+        print(compressed)
+        docs.append(compressed)
+
+        context.append({
+            "content": compressed,
+            "relevance_score": round(hit['_score'], 3),
+            "source": hit['fields']['source'],
+            "page_number": hit['fields']['page']
+        })
+
+    co = cohere.Client(api_key=COHERE_API_KEY)
+    reranked_docs = co.rerank(
+        query=query,
+        documents=docs,
+        top_n=5,  # controls how many reranked docs to return
+        model="rerank-english-v3.0"
+    )
+    docs.clear()
+    print(reranked_docs)
+    for result in reranked_docs.results:
+        context[result.index]['relevance_score'] = result.relevance_score
+        docs.append(context[result.index])
+
+    # update state
+    return {
+        "plan_step": state["plan_step"] + 1,
+        "retrieved_chunks": state["retrieved_chunks"] + docs
+    }
+
     # this is for testing purposes. Comment out for actual implementation:
     # print("retriever called")
-    return {'plan_step': state['plan_step'] + 1}
-    # raise NotImplementedError
+    # return {'plan_step': state['plan_step'] + 1}
 
 if __name__ == '__main__':
     initial_state: ResearchState = {
-        'question': "What are the most recent developments in computer science?",
+        'question': "Ways to protect data stored in the public cloud?",
         'plan': [PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='fact_checker_node'), PlanStep(step='critique_node')],
         'plan_step': 0,
         'retrieved_chunks': [],
@@ -77,4 +130,5 @@ if __name__ == '__main__':
         'scratchpad': [],
         'user_id': 'test_user'
     }
-    retriever_node(initial_state)
+    initial_state = retriever_node(initial_state)
+    print(initial_state)
