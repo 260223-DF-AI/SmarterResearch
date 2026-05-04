@@ -9,7 +9,6 @@ structured retrieval results to the Supervisor.
 from agents.state import ResearchState
 from plan_options import PlanStep
 from pinecone import Pinecone, SearchQuery
-# from langchain_pinecone import PineconeVectorStore
 from langchain_ollama import ChatOllama
 from langchain_aws import ChatBedrock
 import cohere
@@ -21,7 +20,9 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
+# initialize clients
 pc = Pinecone(api_key=PINECONE_API_KEY)
+co = cohere.Client(api_key=COHERE_API_KEY)
 
 # llm initialization and setup
 # bedrock_llm = ChatBedrock(model="amazon.nova-pro-v1:0",
@@ -60,7 +61,9 @@ def retriever_node(state: ResearchState) -> dict:
     context = []
     docs = []
     query = state["question"]
+    log = [f'retriever - sub-task/question: {query}']
 
+    # get semantic search results from pinecone
     results = index.search(namespace="research",
         query=SearchQuery(top_k=10, inputs={'text': query}, ),
         # rerank={
@@ -81,6 +84,8 @@ def retriever_node(state: ResearchState) -> dict:
         ONLY include the cleaned string and use as few output tokens as possible in your response, no intro or outro.
         String to be cleaned: {hit['fields']['chunk_text']}
         User query: {query}"""
+        # context compression: only extract information relevant to the user query
+        # compressed = bedrock_llm.invoke(compression_query).content
         compressed = ollama_llm.invoke(compression_query).content
         print(compressed)
         docs.append(compressed)
@@ -91,8 +96,9 @@ def retriever_node(state: ResearchState) -> dict:
             "source": hit['fields']['source'],
             "page_number": hit['fields']['page']
         })
+    log.append(f"retriever - Pinecone returned {len(context)} results")
 
-    co = cohere.Client(api_key=COHERE_API_KEY)
+    # rerank results with cohere to the user query on the compressed docs
     reranked_docs = co.rerank(
         query=query,
         documents=docs,
@@ -101,14 +107,17 @@ def retriever_node(state: ResearchState) -> dict:
     )
     docs.clear()
     print(reranked_docs)
+
+    # update semantic search results to reflect cohere rerank results
     for result in reranked_docs.results:
-        context[result.index]['relevance_score'] = result.relevance_score
+        context[result.index]['relevance_score'] = round(result.relevance_score, 3)
         docs.append(context[result.index])
 
     # update state
     return {
         "plan_step": state["plan_step"] + 1,
-        "retrieved_chunks": state["retrieved_chunks"] + docs
+        "retrieved_chunks": state["retrieved_chunks"] + docs,
+        "scratchpad": state['scratchpad'] + log
     }
 
     # this is for testing purposes. Comment out for actual implementation:
