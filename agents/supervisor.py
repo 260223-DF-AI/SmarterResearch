@@ -16,6 +16,8 @@ from langchain_ollama import ChatOllama
 
 from plan_options import Plan, PlanStep
 
+EXAMPLES = """[Put an example]"""
+
 def planner_node(state: ResearchState) -> dict:
     """
     Decompose the user's question into actionable sub-tasks.
@@ -26,16 +28,18 @@ def planner_node(state: ResearchState) -> dict:
     - Write to the scratchpad for observability.
     """
     query = f"""
-You are a planner, use the plan-and-execute pattern to create a list of subtasks to achieve the user query.
-
-record the steps in the plan in 'steps' 
-record the reasoning for taking those steps in 'reasoning'
+You are a planner, you will first break down the user query into subtasks to get a decomposed user query.
+From there, use the plan-and-execute pattern to create a list of steps to achieve the user query.
+record the steps in the plan in 'steps' where the step is a node that can be called
+record the decompoosed user query and the reasoning for taking those steps in 'reasoning'
 
 these are the actions that can be taken in the plan:
-- 'retriever_node': Retrieve relevant document chunks for the current sub-task, 
+- 'retriever_node': Retrieve relevant document chunks for the current sub-task in a decomposed user query,
 - 'analyst_node': Synthesize retrieved chunks into a structured research response,
 - 'fact_checker_node': Verify the Analyst's response against trusted reference sources,
 - 'critique_node': Evaluate the aggregated response and decide: accept, retry, or escalate
+
+you can run any of these actions as frequently or little as you deem fit.
 
 this is the user query you are trying to achieve:
 {state['question']}
@@ -49,12 +53,8 @@ this is the user query you are trying to achieve:
     # planning_llm = planning_llm.with_structured_output(Plan)
     # result: Plan = planning_llm.invoke(query) # type: ignore
     
-    ollama_planning_llm = ChatOllama(model='llama3.2', temperature=0.05, format=Plan.model_json_schema())
+    ollama_planning_llm = ChatOllama(model='llama3.2', temperature=0.5, format=Plan.model_json_schema())
     result = Plan.model_validate_json(ollama_planning_llm.invoke(query).content) # type: ignore
-    print(result)
-
-    print(result.steps)
-    print(result.reasoning)
 
     return {
         'plan': result.steps,
