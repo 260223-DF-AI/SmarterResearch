@@ -12,6 +12,7 @@ from agents.fact_checker import fact_checker_node
 from langgraph.graph import StateGraph, START, END
 
 from langchain_aws import ChatBedrock
+from langchain_ollama import ChatOllama
 
 from plan_options import Plan, PlanStep
 
@@ -24,14 +25,6 @@ def planner_node(state: ResearchState) -> dict:
     - Return a list of sub-tasks (Plan-and-Execute pattern).
     - Write to the scratchpad for observability.
     """
-    # llm initialization and setup
-    planning_llm = ChatBedrock(model="mistral.mistral-7b-instruct-v0:2", # will need to find a different model for structured output
-        region = "us-east-1", 
-        model_kwargs={
-            "temperature": 0.05
-    }) 
-    #planning_llm = planning_llm.with_structured_output(Plan)
-
     query = f"""
 You are a planner, use the plan-and-execute pattern to create a list of subtasks to achieve the user query.
 
@@ -47,9 +40,18 @@ these are the actions that can be taken in the plan:
 this is the user query you are trying to achieve:
 {state['question']}
 """
-
+    # llm initialization and setup
+    # planning_llm = ChatBedrock(model="amazon.nova-pro-v1:0",
+    #     region = "us-east-1", 
+    #     model_kwargs={
+    #         "temperature": 0.05
+    # }) 
+    # planning_llm = planning_llm.with_structured_output(Plan)
     # result: Plan = planning_llm.invoke(query) # type: ignore
-    result = Plan(steps=[PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='fact_checker_node'), PlanStep(step='critique_node')], reasoning=[''])
+    
+    ollama_planning_llm = ChatOllama(model='llama3.2', temperature=0.05, format=Plan.model_json_schema())
+    result = Plan.model_validate_json(ollama_planning_llm.invoke(query).content) # type: ignore
+    print(result)
 
     print(result.steps)
     print(result.reasoning)
@@ -157,6 +159,23 @@ if __name__ == '__main__':
     initial_state: ResearchState = {
         'question': 'What are the effects of climate change on coral reefs?',
         'plan': [PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='fact_checker_node'), PlanStep(step='critique_node')],
+        'plan_step': 0,
+        'retrieved_chunks': [],
+        'analysis': {},
+        'fact_check_report': {},
+        'confidence_score': 0.9,
+        'iteration_count': 0,
+        'HITL_threshold': 0.7,
+        'max_refinement': 3,
+        'scratchpad': [],
+        'user_id': 'test_user'
+    }
+    result = graph.invoke(initial_state)
+    print(result)
+    
+    initial_state: ResearchState = {
+        'question': 'What are the discoveries on evolutionary algorithms in 2026 and how do they work?',
+        'plan': [],
         'plan_step': 0,
         'retrieved_chunks': [],
         'analysis': {},
