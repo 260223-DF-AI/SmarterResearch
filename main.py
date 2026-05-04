@@ -40,7 +40,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 def main() -> None:
     """
     High-level flow:
@@ -75,7 +74,7 @@ def main() -> None:
     }
 
     # invoke the graph and collect the final state
-
+    
     try:
         result = graph.invoke(initial_state, config=config)
     except GraphInterrupt as interrupt:
