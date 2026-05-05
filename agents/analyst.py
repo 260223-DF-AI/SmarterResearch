@@ -11,7 +11,6 @@ from pydantic import BaseModel
 
 # from agents.state import ResearchState
 from agents.state import ResearchState
-from utilities.plan_options import PlanStep
 
 # ---------------------------------------------------------------------------
 # Structured Output Schema
@@ -39,7 +38,7 @@ def _format_chunks(chunks: list[dict]) -> str:
     lines = []
     for i, c in enumerate(chunks, start=1):
         page = f", p.{c['page_number']}" if c.get("page_number") else ""
-        lines.append(f"[{i}] (source: {c['source']}{page})\n{c['chunk_text']}")
+        lines.append(f"[{i}] (source: {c['source']}{page})\nexcerpt: {c['chunk_text']}")
     return "\n\n".join(lines)
 
 
@@ -64,12 +63,13 @@ def analyst_node(state: ResearchState) -> dict:
         and "confidence_score" updated from the model's self-assessment.
     """
     print("analyst called")
+    print(state)
 
     chunks = state.get("retrieved_chunks", [])
     log = [f"[analyst] synthesizing from {len(chunks)} chunks"]
 
     plan = state.get("plan", [])
-    idx = state.get("current_subtask_index", 0)
+    idx = state.get("plan_step", 0)
     sub_task = plan[idx] if plan else state["question"]
 
     PROMPT = ChatPromptTemplate.from_messages(
@@ -86,7 +86,7 @@ def analyst_node(state: ResearchState) -> dict:
                 "  • 0.6–0.9 = answer is supported by the context but requires inference\n"
                 "  • <0.6 = context is partial, conflicting, or off-topic\n\n"
                 "Output schema: return JSON with 'answer' (string), 'citations' "
-                "(a JSON array of objects, each with 'source' and 'page_number'), "
+                "(a JSON array of objects, each with 'source', 'page_number', and 'excerpt'), "
                 "and 'confidence' (number 0.0–1.0). Never return citations as a single string.",
             ),
             (
@@ -121,30 +121,8 @@ def analyst_node(state: ResearchState) -> dict:
     )
 
     return {
+        # "plan_step": state.get('plan_step') + 1,
         "analysis": response,
         "confidence_score": response.confidence,
         "scratchpad": log,
     }
-
-
-if __name__ == "__main__":
-    initial_state: ResearchState = {
-        "question": "What are the effects of climate change on coral reefs?",
-        "plan": [
-            PlanStep(step="retriever_node"),
-            PlanStep(step="analyst_node"),
-            PlanStep(step="critique_node"),
-        ],
-        "plan_step": 0,
-        "retrieved_chunks": [],
-        "analysis": {},
-        "fact_check_report": {},
-        "confidence_score": 0.3,  # below threshold → retry
-        "HITL_threshold": 0.7,
-        "iteration_count": 0,
-        "max_refinement": 1,  # only 1 retry allowed → will hit NotImplementedError
-        "scratchpad": [],
-        "user_id": "test_user",
-    }
-
-    analyst_node(initial_state)

@@ -6,7 +6,6 @@ All nodes read from and write to this shared state.
 """
 
 from typing import Annotated, TypedDict, Literal
-from utilities.plan_options import PlanStep
 from operator import add
 
 
@@ -31,7 +30,7 @@ class ResearchState(TypedDict, total=False):
         user_id: Identifier for cross-thread memory via the Store interface.
     """
     question: str
-    plan: list[PlanStep]
+    plan: list[str]
     plan_step: int
     retrieved_chunks: list[dict]
     analysis: dict

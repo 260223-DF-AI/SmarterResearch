@@ -7,7 +7,6 @@ structured retrieval results to the Supervisor.
 """
 
 from agents.state import ResearchState
-from utilities.plan_options import PlanStep
 from pinecone import Pinecone, SearchQuery
 from langchain_ollama import ChatOllama
 from langchain_aws import ChatBedrock
@@ -58,10 +57,14 @@ def retriever_node(state: ResearchState) -> dict:
         Dict with "retrieved_chunks" key containing a list of dicts,
         each with: content, relevance_score, source, page_number.
     """
+    plan = state.get("plan", [])
+    idx = state.get("plan_step", 0)
+    query = plan[idx] if plan else state["question"]
+
+    log = [f"[retriever] sub-task: {query!r}"]
+
     context = []
     docs = []
-    query = state["question"]
-    log = [f'retriever - sub-task/question: {query}']
 
     # get semantic search results from pinecone
     results = index.search(namespace="research",
@@ -116,7 +119,7 @@ def retriever_node(state: ResearchState) -> dict:
 
     # update state
     return {
-        "plan_step": state["plan_step"] + 1,
+        # "plan_step": state["plan_step"] + 1,
         "retrieved_chunks": docs,
         "scratchpad": state['scratchpad'] + log
     }
@@ -124,21 +127,3 @@ def retriever_node(state: ResearchState) -> dict:
     # this is for testing purposes. Comment out for actual implementation:
     # print("retriever called")
     # return {'plan_step': state['plan_step'] + 1}
-
-if __name__ == '__main__':
-    initial_state: ResearchState = {
-        'question': "Ways to protect data stored in the public cloud?",
-        'plan': [PlanStep(step='retriever_node'), PlanStep(step='analyst_node'), PlanStep(step='fact_checker_node'), PlanStep(step='critique_node')],
-        'plan_step': 0,
-        'retrieved_chunks': [],
-        'analysis': {},
-        'fact_check_report': {},
-        'confidence_score': 0.9,
-        'iteration_count': 0,
-        'HITL_threshold': 0.7,
-        'max_refinement': 3,
-        'scratchpad': [],
-        'user_id': 'test_user'
-    }
-    initial_state = retriever_node(initial_state)
-    print(initial_state)
