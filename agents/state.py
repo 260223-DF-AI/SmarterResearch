@@ -5,11 +5,11 @@ Defines the TypedDict that flows through the Supervisor StateGraph.
 All nodes read from and write to this shared state.
 """
 
-from typing import TypedDict, Literal
-from utilities.plan_options import PlanStep
+from typing import Annotated, TypedDict, Literal
+from operator import add
 
 
-class ResearchState(TypedDict):
+class ResearchState(TypedDict, total=False):
     """
     Shared state for the Supervisor graph.
 
@@ -30,7 +30,7 @@ class ResearchState(TypedDict):
         user_id: Identifier for cross-thread memory via the Store interface.
     """
     question: str
-    plan: list[PlanStep]
+    plan: list[str]
     plan_step: int
     retrieved_chunks: list[dict]
     analysis: dict
@@ -38,6 +38,7 @@ class ResearchState(TypedDict):
     confidence_score: float
     iteration_count: int
     HITL_threshold: float
+    trigger_HITL: bool
     max_refinement: int
-    scratchpad: list[str]
+    scratchpad: Annotated[list[str], add]
     user_id: str
