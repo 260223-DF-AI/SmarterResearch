@@ -14,7 +14,7 @@ from langgraph.graph import StateGraph, START, END
 from langchain_aws import ChatBedrock
 from langchain_ollama import ChatOllama
 
-from plan_options import Plan, PlanStep
+from utilities.plan_options import Plan, PlanStep
 
 EXAMPLES = """[Put an example]"""
 
@@ -27,9 +27,9 @@ def planner_node(state: ResearchState) -> dict:
     - Return a list of sub-tasks (Plan-and-Execute pattern).
     - Write to the scratchpad for observability.
     """
+    print(state)
     query = f"""
-You are a planner, you will first break down the user query into subtasks to get a decomposed user query.
-From there, use the plan-and-execute pattern to create a list of steps to achieve the user query.
+Use the plan-and-execute pattern to create a list of steps to achieve the user query.
 record the steps in the plan in 'steps' where the step is a node that can be called
 record the decompoosed user query and the reasoning for taking those steps in 'reasoning'
 
@@ -39,7 +39,7 @@ these are the actions that can be taken in the plan:
 - 'fact_checker_node': Verify the Analyst's response against trusted reference sources,
 - 'critique_node': Evaluate the aggregated response and decide: accept, retry, or escalate
 
-you can run any of these actions as frequently or little as you deem fit.
+you need at least one action in the plan.
 
 this is the user query you are trying to achieve:
 {state['question']}
@@ -53,12 +53,14 @@ this is the user query you are trying to achieve:
     # planning_llm = planning_llm.with_structured_output(Plan)
     # result: Plan = planning_llm.invoke(query) # type: ignore
     
-    ollama_planning_llm = ChatOllama(model='llama3.2', temperature=0.5, format=Plan.model_json_schema())
+    ollama_planning_llm = ChatOllama(model='llama3.2', temperature=0.05, format=Plan.model_json_schema())
     result = Plan.model_validate_json(ollama_planning_llm.invoke(query).content) # type: ignore
 
+    print(result.steps)
     return {
         'plan': result.steps,
-        'scratchpad': state['scratchpad'] + result.reasoning
+        'plan_step': 0,
+        'scratchpad': result.reasoning
     }
 
 

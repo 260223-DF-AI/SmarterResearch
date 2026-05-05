@@ -6,9 +6,14 @@ a research question against the ingested document corpus.
 """
 
 import argparse
-import os
+import uuid
 
 from dotenv import load_dotenv
+from langgraph.errors import GraphInterrupt
+
+from agents.supervisor import build_supervisor_graph
+from middleware.guardrails import detect_injection, sanitize_input
+from middleware.pii_masking import mask_pii
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,7 +40,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 def main() -> None:
     """
     High-level flow:
@@ -47,12 +51,72 @@ def main() -> None:
     load_dotenv()
     args = parse_args()
 
-    # TODO: Initialize the Supervisor StateGraph
-    # TODO: Build the initial graph state from args
-    # TODO: Invoke the graph and collect the final state
-    # TODO: Pretty-print the structured research report
+    # stop prompt injection & mask pii
 
-    raise NotImplementedError("Wire up the Supervisor graph here.")
+    if detect_injection(args.question):
+        print(
+            "PROMPT INJECTION DETECTED. THIS IS EXPRESSLY FORBIDDEN UNDER SMARTERRESEARCH PROTOCOLS AND IS NOT RECEIVED KINDLY. PROGRAM EXITING POSTHASTE."
+        )
+        return
+    question = mask_pii(sanitize_input(args.question))
+
+    # build the initial graph state from args
+
+    graph = build_supervisor_graph()
+
+    # unique threads mean state is not collected across all invocations
+    thread_id = f"cli-{uuid.uuid4()}"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    initial_state = {
+        "question": question,
+        "user_id": args.user_id,
+    }
+
+    # invoke the graph and collect the final state
+    
+    try:
+        result = graph.invoke(initial_state, config=config)
+    except GraphInterrupt as interrupt:
+        print("\n=== HUMAN-IN-THE-LOOP REVIEW REQUIRED ===")
+        print(f"Reason: {interrupt}")
+
+        graph_state = graph.get_state(config)
+        current_analysis = graph_state.values.get("analysis", {})
+        print("\nDraft answer:\n", current_analysis.get("answer", "<empty>"))
+        decision = input("\nApprove answer as-is? [y/n]: ").strip().lower()
+        if decision not in ["y", "yes", "yup", "uhuh", "mhm", "ya", "yuh"]:
+            print("Rejected by reviewer. Aborting.")
+            return
+
+        # mark hitl approved in the state
+        graph.update_state(config, {"needs_hitl": False, "confidence_score": 1.0})
+        result = graph.invoke(None, config=config)
+
+        analysis = result.get("analysis", {})
+        safe_answer = mask_pii(analysis.get("answer", ""))
+
+        # pretty-print the structured research report [thank you rich]
+        print("\n" + "=" * 60)
+        print("ANSWER")
+        print("=" * 60)
+        print(safe_answer)
+        print("\nCITATIONS")
+        for c in analysis.get("citations", []):
+            page = f", p.{c['page_number']}" if c.get("page_number") else ""
+            print(f"  • {c['source']}{page}: {c.get('excerpt', '')[:120]}")
+        print(f"\nCONFIDENCE: {result.get('confidence_score', 0.0):.2f}")
+        print(f"ITERATIONS: {result.get('iteration_count', 0)}")
+
+        if args.verbose:
+            print("\nSCRATCHPAD")
+            for line in result.get("scratchpad", []):
+                print(" ", line)
+
+        if result.get("fact_check_report"):
+            print("\nFACT-CHECK REPORT")
+            for v in result["fact_check_report"]["verdicts"]:
+                print(f"  [{v['verdict']}] {v['claim'][:80]}")
 
 
 if __name__ == "__main__":

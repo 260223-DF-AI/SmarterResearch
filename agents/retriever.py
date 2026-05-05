@@ -7,7 +7,7 @@ structured retrieval results to the Supervisor.
 """
 
 from agents.state import ResearchState
-from plan_options import PlanStep
+from utilities.plan_options import PlanStep
 from pinecone import Pinecone, SearchQuery
 from langchain_ollama import ChatOllama
 from langchain_aws import ChatBedrock
@@ -79,9 +79,9 @@ def retriever_node(state: ResearchState) -> dict:
         print(hit)
         # compression query
         compression_query = f"""Clean the following string up to make it understandable.
-        Extract and keep only the most relevant pieces to the user query.
+        Extract and keep only the pieces relevant to the user query.
         Have each sentence on its own line.
-        ONLY include the cleaned string and use as few output tokens as possible in your response, no intro or outro.
+        ONLY include the cleaned string and make your response as short as possible, no intro or outro.
         String to be cleaned: {hit['fields']['chunk_text']}
         User query: {query}"""
         # context compression: only extract information relevant to the user query
@@ -92,6 +92,7 @@ def retriever_node(state: ResearchState) -> dict:
 
         context.append({
             "content": compressed,
+            "chunk_text": hit['fields']['chunk_text'],
             "relevance_score": round(hit['_score'], 3),
             "source": hit['fields']['source'],
             "page_number": hit['fields']['page']
@@ -116,7 +117,7 @@ def retriever_node(state: ResearchState) -> dict:
     # update state
     return {
         "plan_step": state["plan_step"] + 1,
-        "retrieved_chunks": state["retrieved_chunks"] + docs,
+        "retrieved_chunks": docs,
         "scratchpad": state['scratchpad'] + log
     }
 
