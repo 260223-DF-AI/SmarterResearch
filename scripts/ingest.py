@@ -20,6 +20,20 @@ from pypdf import PdfReader
 
 load_dotenv()
 
+# Store url sources for each file name in our corpi
+file_sources: dict[str, str] =  {
+    "betterexplained": "https://betterexplained.com/articles/easy-permutations-and-combinations/",
+    "centennialcollege.ca": "https://libraryguides.centennialcollege.ca/c.php?g=717168&p=5128089",
+    "cs.sfu.ca": "https://www.cs.sfu.ca/~ggbaker/zju/math/perm-comb-more.html",
+    "everythingeverywhere": "https://everything-everywhere.com/permutations-and-combinations/",
+    "flexbooks.ck12.org": "https://flexbooks.ck12.org/cbook/ck-12-interactive-geometry-for-ccss/section/11.8/primary/lesson/permutations-and-combinations-geo-ccss/",
+    "geeksforgeeks": "https://www.geeksforgeeks.org/maths/permutations-and-combinations/",
+    "libretexts.org": "https://math.libretexts.org/Courses/Las_Positas_College/Math_for_Liberal_Arts/12%",
+    "mathisfun": "https://www.mathsisfun.com/combinatorics/combinations-permutations.html",
+    "mbacrystalball": "https://www.mbacrystalball.com/blog/2015/09/25/permutations-and-combinations/",
+    "openmathbooks.org": "https://discrete.openmathbooks.org/dmoi3/sec_counting-combperm.html",
+}
+
 
 def parse_args() -> argparse.Namespace:
     """Parse ingestion CLI arguments."""
@@ -74,13 +88,15 @@ def load_documents(input_dir: str) -> list:
 
         raw_text: str = ""
 
+        source_url = file_sources.get(file_name, "unknown")
+
         # read files differently depending on file type
         match ext:
             case "txt":
                 with open(file_path, "r") as f:
                     raw_text = f.read()
                     doc = Document(
-                        page_content=raw_text, metadata={"source": file_path, "page": 0}
+                        page_content=raw_text, metadata={"source": source_url, "page": 0}
                     )
                     docs.append(doc)
 
@@ -88,9 +104,13 @@ def load_documents(input_dir: str) -> list:
                 for page_num, content in _read_pdf(file_path):
                     doc = Document(
                         page_content=content,
-                        metadata={"source": file_path, "page": page_num},
+                        metadata={"source": source_url, "page": page_num},
                     )
                     docs.append(doc)
+
+            # ignore other document types
+            case _:
+                pass 
 
     return docs
 
