@@ -1,6 +1,6 @@
 [
   {
-    "question": "REPLACE with a research question relevant to your corpus.",
+    "question": "How does the stars and bars theorem in combinatorics work?",
     "ground_truth_answer": "REPLACE with the expected correct answer.",
     "ground_truth_contexts": [
       "REPLACE with the exact passage(s) from your corpus that support the answer."
