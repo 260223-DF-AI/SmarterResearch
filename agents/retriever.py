@@ -60,6 +60,9 @@ def retriever_node(state: ResearchState) -> dict:
     idx = state.get("plan_step", 0)
     query = plan[idx] if plan else state["question"]
 
+    print(f"Plan step from retriever node: {idx}")
+    print(f"Retrieving documents/chunks for {state['plan'][state['plan_step']]}")
+
     log = [f"[retriever] sub-task: {query!r}"]
 
     context = []
@@ -71,7 +74,6 @@ def retriever_node(state: ResearchState) -> dict:
 
     # formats each result as a dictionary and adds it to the list of context
     for hit in results['result']['hits']:
-        print(hit)
         context.append({
             "chunk_text": hit['fields']['chunk_text'],
             "relevance_score": round(hit['_score'], 3),
@@ -87,7 +89,6 @@ def retriever_node(state: ResearchState) -> dict:
         top_n=5,  # controls how many reranked docs to return
         model="rerank-v3.5"
     )
-    print(reranked_docs)
 
     # update semantic search results to reflect cohere rerank results
     docs = []

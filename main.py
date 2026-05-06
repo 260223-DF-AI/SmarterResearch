@@ -11,6 +11,7 @@ import uuid
 from dotenv import load_dotenv
 from langgraph.errors import GraphInterrupt
 
+from agents.analyst import AnalysisResult
 from agents.supervisor import build_supervisor_graph
 from middleware.guardrails import detect_injection, sanitize_input
 from middleware.pii_masking import mask_pii
@@ -93,30 +94,30 @@ def main() -> None:
         graph.update_state(config, {"needs_hitl": False, "confidence_score": 1.0})
         result = graph.invoke(None, config=config)
 
-        analysis = result.get("analysis", {})
-        safe_answer = mask_pii(analysis.get("answer", ""))
+    analysis: AnalysisResult = result.get("analysis", {})
+    safe_answer = mask_pii(analysis.answer if analysis.answer else "")
 
-        # pretty-print the structured research report [thank you rich]
-        print("\n" + "=" * 60)
-        print("ANSWER")
-        print("=" * 60)
-        print(safe_answer)
-        print("\nCITATIONS")
-        for c in analysis.get("citations", []):
-            page = f", p.{c['page_number']}" if c.get("page_number") else ""
-            print(f"  • {c['source']}{page}: {c.get('excerpt', '')[:120]}")
-        print(f"\nCONFIDENCE: {result.get('confidence_score', 0.0):.2f}")
-        print(f"ITERATIONS: {result.get('iteration_count', 0)}")
+    # pretty-print the structured research report [thank you rich]
+    print("\n" + "=" * 60)
+    print("ANSWER")
+    print("=" * 60)
+    print(safe_answer)
+    print("\nCITATIONS")
+    for c in analysis.citations if analysis.citations else []:
+        page = f", p.{c.page_number}" if c.page_number else ""
+        print(f"  • {c.source}{page}: {c.excerpt[:120] if c.excerpt else ""}")
+    print(f"\nCONFIDENCE: {result.get('confidence_score', 0.0):.2f}")
+    print(f"ITERATIONS: {result.get('iteration_count', 0)}")
 
-        if args.verbose:
-            print("\nSCRATCHPAD")
-            for line in result.get("scratchpad", []):
-                print(" ", line)
+    if args.verbose:
+        print("\nSCRATCHPAD")
+        for line in result.get("scratchpad", []):
+            print(" ", line)
 
-        if result.get("fact_check_report"):
-            print("\nFACT-CHECK REPORT")
-            for v in result["fact_check_report"]["verdicts"]:
-                print(f"  [{v['verdict']}] {v['claim'][:80]}")
+    if result.get("fact_check_report"):
+        print("\nFACT-CHECK REPORT")
+        for v in result["fact_check_report"]["verdicts"]:
+            print(f"  [{v['verdict']}] {v['claim'][:80]}")
 
 
 if __name__ == "__main__":

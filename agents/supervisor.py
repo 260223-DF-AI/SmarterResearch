@@ -126,6 +126,8 @@ def critique_node(state: ResearchState) -> dict:
     - If above threshold, accept and route to END.
     - Increment iteration_count.
     """
+    print(f"Plan step from critique node: {state.get("plan_step")}")
+    print(f"Current subtask/step from critique node: {state['plan'][state['plan_step']]}")
     # assign variables
     confidence = state.get('confidence_score', 0.0)
     iteration = state.get("iteration_count", 0) + 1
@@ -135,10 +137,10 @@ def critique_node(state: ResearchState) -> dict:
     log = [f"[critique] iter={iteration}, conf={confidence:.2f}, "
            f"threshold={threshold}, max_iter={max_iterations}"]
 
-    print('Critique node called') # for testing and debugging purposes only
     # Accept condition and action
     if(confidence >= threshold and state.get("trigger_HITL") == False):
         log.append("[critique] accepted")
+        print("Critique node accepted thing")
         return {"iteration_count": iteration, "scratchpad": log}
     
     # Retry condition and action

@@ -11,6 +11,7 @@ import re
 import os
 from dotenv import load_dotenv
 from pinecone import Pinecone, SearchQuery
+from agents.analyst import AnalysisResult
 from agents.state import ResearchState
 
 from langchain_ollama import ChatOllama
@@ -73,7 +74,7 @@ def _split_into_claims(answer: str) -> list[str]:
     return [s for s in sentences if len(s) > 20]
 
 def _verify_claim(claim: str) -> ClaimVerdict:
-    results = index.search(namespace="",query=SearchQuery(claim, 3))
+    results = index.search(namespace="review",query=SearchQuery(inputs={'text': claim}, top_k=3))
 
     if not results['result']['hits']:
         return ClaimVerdict(claim=claim, verdict="Inconclusive",
@@ -100,10 +101,12 @@ def fact_checker_node(state: ResearchState) -> dict:
     """
     log = ["[fact_checker] starting verification"]
 
-    analysis = state.get("analysis") or {}
-    answer = analysis.get("answer", "")
+    analysis: AnalysisResult = state.get("analysis") or {}
+    answer = analysis.answer if analysis.answer else ""
     claims = _split_into_claims(answer)
     log.append(f"[fact_checker] extracted {len(claims)} claims")
+
+    print(claims)
 
     if not claims:
         report = FactCheckReport(verdicts=[], overall_confidence=0.0)
@@ -133,6 +136,7 @@ def fact_checker_node(state: ResearchState) -> dict:
         f"unsupported={counts['Unsupported']}, inconclusive={counts['Inconclusive']}, "
         f"overall={overall:.2f}, hitl={trigger_HITL}"
     )
+    print(report)
 
     return {
         "fact_check_report": report.model_dump(),
