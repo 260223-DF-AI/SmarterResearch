@@ -24,12 +24,12 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 co = cohere.Client(api_key=COHERE_API_KEY)
 
 # llm initialization and setup
-# bedrock_llm = ChatBedrock(model="amazon.nova-pro-v1:0",
-#     region = "us-east-1", 
-#     model_kwargs={
-#         "temperature": 0.05
-# }) 
-ollama_llm = ChatOllama(model='llama3.2', temperature=0.05)
+ollama_llm = ChatBedrock(model="amazon.nova-pro-v1:0",
+    region = "us-east-1", 
+    model_kwargs={
+        "temperature": 0.05
+}) 
+# ollama_llm = ChatOllama(model='llama3.2', temperature=0.05)
 
 if not pc.has_index(PINECONE_INDEX_NAME):
     pc.create_index_for_model(

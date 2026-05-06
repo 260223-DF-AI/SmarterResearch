@@ -11,7 +11,15 @@ Usage:
 import argparse
 import json
 
+from datasets import Dataset  # pip install datasets
 from dotenv import load_dotenv
+from langchain_aws import BedrockEmbeddings, ChatBedrock
+from ragas import evaluate
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.llms import LangchainLLMWrapper
+from ragas.metrics import answer_relevancy, context_precision, faithfulness
+
+from agents.supervisor import build_supervisor_graph
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,19 +53,96 @@ def generate_predictions(dataset: list[dict]) -> list[dict]:
     - Capture the generated answer and the retrieved contexts.
     - Return a list of dicts with keys: question, answer, contexts.
     """
-    raise NotImplementedError
+    graph = build_supervisor_graph()
+    out = []
+    for i, entry in enumerate(dataset):
+        config = {"configurable": {"thread_id": f"eval-{i}"}}
+        try:
+            result = graph.invoke(
+                {"question": entry["question"], "user_id": "evaluator"},
+                config=config,
+            )
+        except Exception as e:
+            print(f"  [warn] entry {i} failed: {e}")
+            out.append({"question": entry["question"], "answer": "", "contexts": []})
+            continue
+        analysis = result.get("analysis", {}) or {}
+        contexts = [c["content"] for c in result.get("retrieved_chunks", [])]
+        out.append(
+            {
+                "question": entry["question"],
+                "answer": analysis.get("answer", ""),
+                "contexts": contexts,
+                "ground_truth": entry["ground_truth_answer"],
+            }
+        )
+        print(f"  [{i + 1}/{len(dataset)}] done")
+    return out
 
 
 def run_ragas_evaluation(predictions: list[dict], golden: list[dict]) -> dict:
     """
     Evaluate predictions against the golden dataset using RAGAS.
 
-    TODO:
-    - Construct a RAGAS Dataset from predictions and ground truth.
-    - Evaluate with metrics: faithfulness, answer_relevancy, context_precision.
-    - Return a dict of metric_name → score.
+    Merges ground_truth and reference_contexts from the golden dataset into
+    each prediction row, then evaluates with faithfulness, answer_relevancy,
+    and context_precision using AWS Bedrock instead of OpenAI.
     """
-    raise NotImplementedError
+    bedrock_llm = LangchainLLMWrapper(
+        ChatBedrock(model_id="amazon.nova-pro-v1:0", region_name="us-east-1")
+    )
+    bedrock_embeddings = LangchainEmbeddingsWrapper(
+        BedrockEmbeddings(
+            model_id="amazon.titan-embed-text-v2:0", region_name="us-east-1"
+        )
+    )
+
+    metrics = [faithfulness, answer_relevancy, context_precision]
+    for m in metrics:
+        m.llm = bedrock_llm
+        if hasattr(m, "embeddings"):
+            m.embeddings = bedrock_embeddings
+
+    if len(predictions) != len(golden):
+        raise ValueError(
+            f"Prediction count ({len(predictions)}) does not match golden count ({len(golden)})."
+        )
+
+    rows = []
+    for pred, gold in zip(predictions, golden):
+        rows.append(
+            {
+                "question": pred["question"],
+                "answer": pred["answer"],
+                "contexts": pred["contexts"],
+                "ground_truth": gold["ground_truth_answer"],
+                "reference_contexts": gold.get("ground_truth_contexts", []),
+            }
+        )
+    ds = Dataset.from_list(rows)
+    result = evaluate(
+        ds,
+        metrics=[faithfulness, answer_relevancy, context_precision],
+    )
+
+    # ragas<0.5 can expose scores as a list; newer versions may expose a dict.
+    metric_names = ["faithfulness", "answer_relevancy", "context_precision"]
+    scores_obj = getattr(result, "scores", None)
+    if isinstance(scores_obj, dict):
+        return {k: float(v) for k, v in scores_obj.items()}
+    if isinstance(scores_obj, list):
+        return {
+            name: float(value)
+            for name, value in zip(metric_names, scores_obj, strict=False)
+        }
+
+    # Fallback for older/newer ragas result objects.
+    if hasattr(result, "to_dict"):
+        raw = result.to_dict()
+        if isinstance(raw, dict):
+            return {k: float(v) for k, v in raw.items() if isinstance(v, (int, float))}
+
+    raise TypeError(f"Unsupported ragas result format: {type(result)!r}")
 
 
 def main() -> None:
