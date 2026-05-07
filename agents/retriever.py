@@ -40,6 +40,13 @@ if not pc.has_index(PINECONE_INDEX_NAME):
     )
 index = pc.Index(name=PINECONE_INDEX_NAME)
 
+def cos_sim(a: list[float], b: list[float]) -> float:
+    """Cosine similarity for plain Python lists — avoids a numpy import."""
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
 
 def retriever_node(state: ResearchState) -> dict:
     """
@@ -64,37 +71,15 @@ def retriever_node(state: ResearchState) -> dict:
     log = [f"[retriever] sub-task: {query!r}"]
 
     context = []
-    docs = []
 
     # get semantic search results from pinecone
     results = index.search(namespace="research",
-        query=SearchQuery(top_k=10, inputs={'text': query}, ),
-        # rerank={
-        #     # "model": "pinecone-rerank-v0",
-        #     "model": "bge-reranker-v2-m3",
-        #     "top_n": 10,
-        #     "rank_fields": ["chunk_text"]
-        # }
+        query=SearchQuery(top_k=20, inputs={'text': query}),
     )
 
     # formats each result as a dictionary and adds it to the list of context
     for hit in results['result']['hits']:
-        print(hit)
-        # compression query
-        compression_query = f"""Clean the following string up to make it understandable.
-        Extract and keep only the pieces relevant to the user query.
-        Have each sentence on its own line.
-        ONLY include the cleaned string and make your response as short as possible, no intro or outro.
-        String to be cleaned: {hit['fields']['chunk_text']}
-        User query: {query}"""
-        # context compression: only extract information relevant to the user query
-        # compressed = bedrock_llm.invoke(compression_query).content
-        compressed = ollama_llm.invoke(compression_query).content
-        print(compressed)
-        docs.append(compressed)
-
         context.append({
-            "content": compressed,
             "chunk_text": hit['fields']['chunk_text'],
             "relevance_score": round(hit['_score'], 3),
             "source": hit['fields']['source'],
@@ -105,21 +90,19 @@ def retriever_node(state: ResearchState) -> dict:
     # rerank results with cohere to the user query on the compressed docs
     reranked_docs = co.rerank(
         query=query,
-        documents=docs,
+        documents=[elem.get('chunk_text') for elem in context],
         top_n=5,  # controls how many reranked docs to return
-        model="rerank-english-v3.0"
+        model="rerank-v3.5"
     )
-    docs.clear()
-    print(reranked_docs)
 
     # update semantic search results to reflect cohere rerank results
+    docs = []
     for result in reranked_docs.results:
         context[result.index]['relevance_score'] = round(result.relevance_score, 3)
         docs.append(context[result.index])
 
     # update state
     return {
-        # "plan_step": state["plan_step"] + 1,
         "retrieved_chunks": docs,
         "scratchpad": state['scratchpad'] + log
     }

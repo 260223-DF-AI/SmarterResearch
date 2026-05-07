@@ -12,7 +12,7 @@ from agents.analyst import analyst_node
 from agents.fact_checker import fact_checker_node
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.errors import NodeInterrupt
+from langgraph.types import interrupt
 from langgraph.checkpoint.memory import MemorySaver
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -52,7 +52,6 @@ def planner_node(state: ResearchState) -> dict:
     - Return a list of sub-tasks (Plan-and-Execute pattern).
     - Write to the scratchpad for observability.
     """
-    print(state)
     user = state.get("user_id", "default")
     user_preferences = get_user_preferences(user)
     query_history = get_query_history(user, limit=HISTORY_LIM)
@@ -80,12 +79,11 @@ def planner_node(state: ResearchState) -> dict:
         "history": query_history or ["<none>"],
     }).content) # type: ignore
 
-    print(result.steps)
     return {
         'plan': result.steps,
         'plan_step': 0,
         "iteration_count": 0,
-        "needs_hitl": False,
+        "trigger_HITL": False,
         'scratchpad': [f"[planner] decomposed into {len(result.steps)} sub-tasks"]
     }
 
@@ -135,16 +133,27 @@ def critique_node(state: ResearchState) -> dict:
     log = [f"[critique] iter={iteration}, conf={confidence:.2f}, "
            f"threshold={threshold}, max_iter={max_iterations}"]
 
-    print('Critique node called') # for testing and debugging purposes only
     # Accept condition and action
     if(confidence >= threshold and state.get("trigger_HITL") == False):
         log.append("[critique] accepted")
+        step = state.get('plan_step', 0)
+        if(step < len(state.get('plan', [])) - 1):
+            step += 1
+            return {
+                "plan_step": step,
+                "iteration_count": 0,
+                "confidence_score": 0.0,
+                "trigger_HITL": False,
+                "retrieved_chunks": [],          # forces retriever to re-fetch
+                "analysis": {},                  # forces analyst to re-synthesize
+                "fact_check_report": {},
+                "scratchpad": log,
+            }
         return {"iteration_count": iteration, "scratchpad": log}
     
     # Retry condition and action
     if(iteration < max_iterations):
         log.append("[critique] retrying — clearing analysis & fact_check")
-        # increment the value of the plan step and loop back for refinement
         return {
             "iteration_count": iteration,
             "retrieved_chunks": [],          # forces retriever to re-fetch
@@ -157,11 +166,10 @@ def critique_node(state: ResearchState) -> dict:
     # Trigger HITL interruption. Write middleware later
     log.append("[critique] max iterations reached — escalating to HITL")
     # NodeInterrupt pauses the graph; resume by graph.update_state(...).
-    raise NodeInterrupt(
+    raise interrupt(
         f"Confidence {confidence:.2f} below threshold {threshold} "
         f"after {iteration} iterations. Human review required."
     )
-
 
 def build_supervisor_graph():
     """
