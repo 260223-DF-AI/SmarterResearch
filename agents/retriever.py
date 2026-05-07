@@ -60,9 +60,6 @@ def retriever_node(state: ResearchState) -> dict:
     idx = state.get("plan_step", 0)
     query = plan[idx] if plan else state["question"]
 
-    print(f"Plan step from retriever node: {idx}")
-    print(f"Retrieving documents/chunks for {state['plan'][state['plan_step']]}")
-
     log = [f"[retriever] sub-task: {query!r}"]
 
     context = []

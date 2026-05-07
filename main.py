@@ -62,7 +62,6 @@ def main() -> None:
     question = mask_pii(sanitize_input(args.question))
 
     # build the initial graph state from args
-
     graph = build_supervisor_graph()
 
     # unique threads mean state is not collected across all invocations

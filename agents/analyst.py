@@ -62,7 +62,6 @@ def analyst_node(state: ResearchState) -> dict:
         Dict with "analysis" key containing the AnalysisResult as a dict,
         and "confidence_score" updated from the model's self-assessment.
     """
-    print("analyst called")
 
     chunks = state.get("retrieved_chunks", [])
     log = [f"[analyst] synthesizing from {len(chunks)} chunks"]
@@ -118,8 +117,6 @@ def analyst_node(state: ResearchState) -> dict:
         f"[analyst] confidence={response.confidence:.2f}, "
         f"citations={len(response.citations)}"
     )
-
-    print(f"Analyst node's analysis: {response}")
 
     return {
         "analysis": response,

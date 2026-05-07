@@ -106,8 +106,6 @@ def fact_checker_node(state: ResearchState) -> dict:
     claims = _split_into_claims(answer)
     log.append(f"[fact_checker] extracted {len(claims)} claims")
 
-    print(claims)
-
     if not claims:
         report = FactCheckReport(verdicts=[], overall_confidence=0.0)
         return {
@@ -136,7 +134,6 @@ def fact_checker_node(state: ResearchState) -> dict:
         f"unsupported={counts['Unsupported']}, inconclusive={counts['Inconclusive']}, "
         f"overall={overall:.2f}, hitl={trigger_HITL}"
     )
-    print(report)
 
     return {
         "fact_check_report": report.model_dump(),
@@ -144,7 +141,3 @@ def fact_checker_node(state: ResearchState) -> dict:
         "trigger_HITL": trigger_HITL,
         "scratchpad": log,
     }
-
-    # this is for testing purposes. Comment out for actual implementation:
-    # print("fact_checker called")
-    # return {'plan_step': state['plan_step'] + 1}
