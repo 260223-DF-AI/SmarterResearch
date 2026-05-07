@@ -1,17 +1,82 @@
 [
   {
     "question": "How does the stars and bars theorem in combinatorics work?",
-    "ground_truth_answer": "REPLACE with the expected correct answer.",
+    "ground_truth_answer": "The stars and bars theorem calculates the number of ways to distribute k identical items into n distinct bins by arranging a sequence of k stars and n-1 bars. The total number of unique arrangements is determined by the binomial coefficient binom{n+k-1}{k}, representing the ways to choose k positions for stars out of n+k-1 total slots.",
     "ground_truth_contexts": [
-      "REPLACE with the exact passage(s) from your corpus that support the answer."
+      "A solution of the above Diophantine equation can be represented by   stars, a separator (a bar), then more stars, another separator, and so on. The total number of stars in this representation is k and the number of bars is n - 1 (since a separation into n parts needs n-1 separators). Thus, a string of k + n - 1 (or n + k - 1) symbols (stars and bars) corresponds to a solution if there are k stars in the string. Any solution  can  be  represented  by  choosing  k  out  of  k  +  n  −  1  positions  to  place  stars  and  filling  the remaining  positions  with  bars."
     ]
   },
   {
-    "question": "What are the primary differences between X and Y?",
-    "ground_truth_answer": "X differs from Y in three key ways: ...",
+    "question": "Is order important for permutations of a collection?",
+    "ground_truth_answer": "For permutations, order matters.",
     "ground_truth_contexts": [
-      "Passage from document A that discusses X...",
-      "Passage from document B that discusses Y..."
+      "Permutations are for lists (order matters)",
+      "As mentioned in the introduction to this guide, permutations are the different arrangements you can make from a set when order matters.",
+      "Interesting side note: if you have a combination lock where you have a wheel and need to put numbers is order to open it, it is actually a permutation, not a combination, because the order matters."
+    ]
+  },
+  {
+    "question": "Is order important for combinations of a collection?",
+    "ground_truth_answer": "A combination selects items without considering order.",
+    "ground_truth_contexts": [
+      "A combination is selecting items without considering order.",
+      "A combination is a selection of objects in which the order of selection does not matter.",
+      "When the order doesn't matter, it is a Combination."
+    ]
+  },
+  {
+    "question": "What is the factorial of a number?",
+    "ground_truth_answer": "The factorial of a number is the product of all numbers from n to 1.",
+    "ground_truth_contexts": [
+      "Factorial of a number n is defined as the product of all the numbers from n to 1.",
+      "A piece of notation is helpful here:   (read “  factorial”) is the product of all positive integers less than or equal to   (for reasons of convenience, we also define 0! to be 1)"
+    ]
+  },
+  {
+    "question": "What is the permutations formula?",
+    "ground_truth_answer": "The formula is [n!/(n-k)!].",
+    "ground_truth_contexts": [
+      "A permutation is the number of ways to choose and arrange   objects from a group of n objects. (order matters) nPk = n!/(n-k)!",
+      "Permutation formula is used to find the number of ways to pick ‘r’ things out of ‘n’ different things in a specific order and replacement is not allowed. The formula is given as follows: nPr = n!/(n-r)!"
+    ]
+  },
+  {
+    "question": "What is the combinations formula?",
+    "ground_truth_answer": "The formula is [n!/r!(n-r)!].",
+    "ground_truth_contexts": [
+      "A combination is a selection of objects in which the order of selection does not matter. The number of combinations of n items taking r at a time is: C(n, r) = n!/r!(n-r)!",
+      "Combination Formula is used to choose ‘r’ components out of a total number of ‘n’ components and is given by: nCr = n!/r!(n-r)!"
+    ]
+  },
+  {
+    "question": "How do you solve permutations with repetition allowed?",
+    "ground_truth_answer": "You can solve permutations with repetition by raising the number of types, n, to the number of items chosen, r. Represented as n^r.",
+    "ground_truth_contexts": [
+      "When a thing has n different types ... we have n choices each time! For example: choosing 3 of those things, the permutations are: n × n × n (n multiplied 3 times) More generally: choosing r of something that has n different types, the permutations are: n x n x ... (r times). Which is easier to write down using an  exponent  of r: n x n x ... (r times) = n^r",
+      "That was an r-permutation of n items with repetition allowed.Specifically, we select r   objects from n possibilities, and are allowed to select the same object as many times as we want.There are n^r different r-permutations of n items with repetition.Proof: the product rule applied r times."
+    ]
+  },
+  {
+    "question": "What is the notation for selecting r permutations from n items?",
+    "ground_truth_answer": "The proper notation is nPr.",
+    "ground_truth_contexts": [
+      "A permutation is the number of ways to choose and arrange   objects from a group of n objects. (order matters) nPr = n!/(n-r)!",
+      "Permutation is the way of arranging items where order is important. For example, if we have two components, A and B, then they can be arranged in these ways, {AB and BA}. Permutation is represented as nPr."
+    ]
+  },
+  {
+    "question": "What is the notation for selecting r combinations from n items?",
+    "ground_truth_answer": "The proper notation is nCr.",
+    "ground_truth_contexts": [
+      "Combination Formula is used to choose ‘r’ components out of a total number of ‘n’ components and is given by: nCr = n!/r!(n-r)!",
+      "A combination is a selection of objects in which the order of selection does not matter. The number of combinations of n items taking r at a time is: C(n, r) = n!/r!(n-r)! Note: Many calculators can calculate combinations directly. Look for a function that looks like bCr or C(n, r)."
+    ]
+  },
+  {
+    "question": "How many different ways can you order cards in a deck of cards?",
+    "ground_truth_answer": "Since there are 52 cards in a deck, you can order cards 52! (52 factorial) ways.",
+    "ground_truth_contexts": [
+      "Take, for example, a deck or ordinary playing cards. There are 52 cards in the deck. How many different ways can a deck of playing cards be ordered? This is fundamentally the same problem I addressed above, just with a bigger number.  There are 52 possibilities for the first card, 51 for the second card, 50 for the third card, and so on. The answer is just 52!"
     ]
   }
 ]
